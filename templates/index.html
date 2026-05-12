@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sentiment Analysis Tool</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header class="header">
+  <div class="container">
+    <div class="header-inner">
+      <div>
+        <h1>Sentiment Analysis Tool</h1>
+        <p class="subtitle">Classify customer reviews as Positive, Negative, or Neutral using NLP</p>
+      </div>
+      <span class="badge-model" id="model-badge">Model: VADER</span>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ── Summary cards ──────────────────────────────────────────── -->
+  <section class="metric-grid" aria-label="Sentiment summary">
+    <div class="metric-card pos">
+      <span class="metric-val" id="cnt-pos">0</span>
+      <span class="metric-lbl">Positive 😊</span>
+    </div>
+    <div class="metric-card neg">
+      <span class="metric-val" id="cnt-neg">0</span>
+      <span class="metric-lbl">Negative 😠</span>
+    </div>
+    <div class="metric-card neu">
+      <span class="metric-val" id="cnt-neu">0</span>
+      <span class="metric-lbl">Neutral 😐</span>
+    </div>
+    <div class="metric-card total">
+      <span class="metric-val" id="cnt-total">0</span>
+      <span class="metric-lbl">Total reviews</span>
+    </div>
+  </section>
+
+  <div class="two-col">
+
+    <!-- ── Left panel ─────────────────────────────────────────────── -->
+    <div class="panel">
+
+      <!-- Single review -->
+      <section class="card">
+        <h2 class="card-title">Analyse a single review</h2>
+        <textarea id="single-input" class="textarea" rows="4"
+          placeholder="Type or paste a customer review here…"></textarea>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="analyseSingle()">▶ Analyse</button>
+          <button class="btn" onclick="clearSingle()">Clear</button>
+        </div>
+        <div id="single-result" class="result-area" aria-live="polite"></div>
+      </section>
+
+      <!-- Bulk / upload -->
+      <section class="card">
+        <h2 class="card-title">Bulk analysis</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab active" id="tab-paste" role="tab" aria-selected="true"
+            onclick="switchTab('paste')">Paste reviews</button>
+          <button class="tab" id="tab-upload" role="tab" aria-selected="false"
+            onclick="switchTab('upload')">Upload CSV</button>
+        </div>
+
+        <div id="pane-paste">
+          <textarea id="bulk-input" class="textarea" rows="6"
+            placeholder="One review per line…"></textarea>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="analyseBulk()">▶ Run bulk analysis</button>
+            <button class="btn" onclick="loadSample()">Load sample data</button>
+          </div>
+        </div>
+
+        <div id="pane-upload" style="display:none">
+          <div class="upload-zone" onclick="document.getElementById('csv-file').click()"
+            ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+            <div class="upload-icon">📂</div>
+            <p>Click to upload a CSV file</p>
+            <p class="upload-hint">One column of text reviews — header row optional</p>
+          </div>
+          <input type="file" id="csv-file" accept=".csv,.txt" style="display:none"
+            onchange="handleCSV(this)" />
+        </div>
+
+        <div id="bulk-status" class="status-msg" style="display:none"></div>
+      </section>
+
+      <!-- Insight box -->
+      <div id="insight-box" class="insight-box" style="display:none"></div>
+
+    </div>
+
+    <!-- ── Right panel — charts ────────────────────────────────────── -->
+    <div class="panel">
+      <section class="card" id="charts-section" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+          <h2 class="card-title" style="margin-bottom:0">Visualisations</h2>
+          <button class="btn btn-report" id="btn-report" onclick="downloadReport()" style="display:none">
+            ⬇ Download PDF Report
+          </button>
+        </div>
+        <div class="viz-tabs" role="tablist">
+          <button class="tab active" id="vt-bar" onclick="switchViz('bar')">Bar</button>
+          <button class="tab" id="vt-pie" onclick="switchViz('pie')">Pie</button>
+          <button class="tab" id="vt-trend" onclick="switchViz('trend')">Trend</button>
+        </div>
+
+        <div id="viz-bar">
+          <div class="legend">
+            <span><span class="sq" style="background:#1D9E75"></span>Positive</span>
+            <span><span class="sq" style="background:#D85A30"></span>Negative</span>
+            <span><span class="sq" style="background:#BA7517"></span>Neutral</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="barChart" role="img" aria-label="Bar chart of sentiment counts">Sentiment bar chart.</canvas>
+          </div>
+        </div>
+
+        <div id="viz-pie" style="display:none">
+          <div class="legend">
+            <span><span class="sq" style="background:#1D9E75"></span>Positive</span>
+            <span><span class="sq" style="background:#D85A30"></span>Negative</span>
+            <span><span class="sq" style="background:#BA7517"></span>Neutral</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="pieChart" role="img" aria-label="Pie chart of sentiment distribution">Sentiment pie chart.</canvas>
+          </div>
+        </div>
+
+        <div id="viz-trend" style="display:none">
+          <div class="chart-wrap">
+            <canvas id="trendChart" role="img" aria-label="Trend line of sentiments over batches">Sentiment trend chart.</canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results list -->
+      <section class="card" id="list-section" style="display:none">
+        <div class="list-header">
+          <h2 class="card-title">Review results <span id="list-count" class="muted"></span></h2>
+          <div class="filter-btns">
+            <button class="btn btn-sm active" id="f-all" onclick="filterList('all')">All</button>
+            <button class="btn btn-sm" id="f-pos" onclick="filterList('Positive')">Positive</button>
+            <button class="btn btn-sm" id="f-neg" onclick="filterList('Negative')">Negative</button>
+            <button class="btn btn-sm" id="f-neu" onclick="filterList('Neutral')">Neutral</button>
+            <button class="btn btn-sm btn-danger" onclick="clearAll()">Clear all</button>
+          </div>
+        </div>
+        <div class="reviews-list" id="reviews-list" role="list"></div>
+      </section>
+    </div>
+
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    Sentiment Analysis Tool &mdash; VADER NLP &amp; scikit-learn &mdash;
+    Built with Python &amp; Flask
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
